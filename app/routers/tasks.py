@@ -1,11 +1,8 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
+from app.models.task_models import TaskRequest
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
-
-class TaskRequest(BaseModel):
-    app: str
-    instruction: str
 
 @router.post("/run")
 async def run_task(request: TaskRequest):
