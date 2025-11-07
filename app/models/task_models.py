@@ -6,6 +6,8 @@ class Step(BaseModel):
     selector_hint: str
     description: str
     value: Optional[str] = None
+    url: Optional[str] = None
+    screenshot_path: Optional[str] = None
 
 class TaskRequest(BaseModel):
     app: str
