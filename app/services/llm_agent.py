@@ -7,40 +7,37 @@ class LLMAgent:
     def __init__(self):
         self.client = groq_client
 
+class LLMAgent:
+    def __init__(self):
+        self.client = groq_client
+
     def generate_steps(self, app: str, instruction: str):
         notion_knowledge = """
         NOTION UI KNOWLEDGE:
-        - To create database: Click "New" button → Click "Database" option → Click "New database" → Fill title field
+        - To create ANYTHING (page/database): Click the More Options button, next to username
+        - After clicking it: Choose "Page" for new page OR "Database" for new database
+        - For database: Click "Database" → Choose "New database" → Fill the title field
         - Settings/Theme: Click "Settings & members" → "Settings" → "Appearance" → Toggle theme
         - Date & Time Settings: Click "Settings & members" → "Settings" → "Date & time" → Toggle "Start week on Monday"
-        - New page: Click "New" button → "Page" option → Fill title field
         - Search: Click "Search" or "Quick Find" field in sidebar
         
-        IMPORTANT: For "Start week on Monday" use EXACTLY these steps:
-        1. Click "Settings & members"
-        2. Click "Settings" 
-        3. Click "Date & time"
-        4. Click "Start week on Monday"
-        
-        IMPORTANT: For creating database use EXACTLY these steps:
-        1. Click "New"
-        2. Click "Database"
-        3. Click "New database" 
-        4. Fill "Untitled" with database name
+        CRITICAL: The More Options (looks like a v) button is the MAIN creation button, NOT the small "+ New" button
         """
 
         prompt = f"""
-        You are an expert Notion automation planner. Convert this instruction into precise, executable steps.
+        You are an expert Notion automation planner. You know the EXACT UI structure of Notion.
+
+        {notion_knowledge}
+        
+        Convert this instruction into precise, executable steps using EXACT Notion UI elements:
         
         App: {app}
         Instruction: {instruction}
         
-        {notion_knowledge}
-        
-        Use ONLY these exact Notion UI element names:
-        - "New" button (for creating anything new)
-        - "Database" option (in the New menu) 
-        - "Page" option (in the New menu)
+        CRITICAL: Use ONLY these exact Notion UI element names:
+        - "v" button (More Options) (MAIN creation button in sidebar - three dots with V arrow)
+        - "Page" option (in the v menu)
+        - "Database" option (in the v menu) 
         - "New database" button (after selecting Database)
         - "Untitled" field (for page/database titles)
         - "Settings & members" button
@@ -52,51 +49,12 @@ class LLMAgent:
         - "Light mode" toggle
         - "Search" or "Quick Find" field
         
-        CRITICAL RULES:
-        1. Generate ONLY the steps needed to complete the instruction
-        2. Do NOT add extra steps or repeat actions
-        3. For toggle actions, perform exactly ONE click
-        4. For fill actions, use the full text at once (not character by character)
-        5. Stop after the main action is completed
-        
-        Example for "Toggle 'Start week on Monday'":
+        IMPORTANT: For creating database, use EXACTLY these steps:
         [
         {{
             "action": "click",
-            "selector_hint": "Settings & members", 
-            "description": "Open settings menu",
-            "value": null,
-            "url": null
-        }},
-        {{
-            "action": "click",
-            "selector_hint": "Settings",
-            "description": "Open settings",
-            "value": null,
-            "url": null
-        }},
-        {{
-            "action": "click",
-            "selector_hint": "Date & time",
-            "description": "Open date and time settings", 
-            "value": null,
-            "url": null
-        }},
-        {{
-            "action": "click",
-            "selector_hint": "Start week on Monday",
-            "description": "Toggle start week on Monday setting",
-            "value": null,
-            "url": null
-        }}
-        ]
-        
-        Example for "Create database named 'Projects'":
-        [
-        {{
-            "action": "click",
-            "selector_hint": "New",
-            "description": "Open new item menu",
+            "selector_hint": "More Options (v shaped button)",
+            "description": "Open main creation menu",
             "value": null,
             "url": null
         }},
@@ -118,14 +76,14 @@ class LLMAgent:
             "action": "fill",
             "selector_hint": "Untitled",
             "description": "Name the database",
-            "value": "Projects",
+            "value": "DATABASE_NAME",
             "url": null
         }}
         ]
         
         Now generate steps for: "{instruction}"
         
-        Output ONLY valid JSON array. Do not add explanations.
+        Output ONLY valid JSON array with exact Notion UI elements.
         """
 
         response = self.client.chat.completions.create(
