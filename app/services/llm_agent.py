@@ -7,21 +7,20 @@ class LLMAgent:
     def __init__(self):
         self.client = groq_client
 
-class LLMAgent:
-    def __init__(self):
-        self.client = groq_client
-
     def generate_steps(self, app: str, instruction: str):
         notion_knowledge = """
         NOTION UI KNOWLEDGE:
-        - To create ANYTHING (page/database): Click the More Options button, next to username
-        - After clicking it: Choose "Page" for new page OR "Database" for new database
-        - For database: Click "Database" → Choose "New database" → Fill the title field
+        - To create database: Click "More Options (v shaped button)" → Click "Database" → Database is created immediately with "Untitled" field ready to fill
+        - NO need to click "New database" - that opens template panel
+        - To search: Click "Search" or "Quick Find" field in the sidebar
+        - Search field is usually at the top of the sidebar, labeled "Search" or "Quick Find"
+        - After clicking search, type the search query
         - Settings/Theme: Click "Settings & members" → "Settings" → "Appearance" → Toggle theme
         - Date & Time Settings: Click "Settings & members" → "Settings" → "Date & time" → Toggle "Start week on Monday"
-        - Search: Click "Search" or "Quick Find" field in sidebar
         
-        CRITICAL: The More Options (looks like a v) button is the MAIN creation button, NOT the small "+ New" button
+        CRITICAL: 
+        - For creation: Use "More Options (v shaped button)"
+        - For search: Use "Search" or "Quick Find" field
         """
 
         prompt = f"""
@@ -35,11 +34,11 @@ class LLMAgent:
         Instruction: {instruction}
         
         CRITICAL: Use ONLY these exact Notion UI element names:
-        - "v" button (More Options) (MAIN creation button in sidebar - three dots with V arrow)
-        - "Page" option (in the v menu)
-        - "Database" option (in the v menu) 
-        - "New database" button (after selecting Database)
-        - "Untitled" field (for page/database titles)
+        - "More Options (v shaped button)" (MAIN creation button next to username)
+        - "Database" option (in the More Options menu)
+        - "Untitled" field (appears immediately after creating database)
+        - "Search" field (in sidebar for searching)
+        - "Quick Find" field (alternative search field)
         - "Settings & members" button
         - "Settings" option 
         - "Appearance" option
@@ -47,7 +46,6 @@ class LLMAgent:
         - "Start week on Monday" toggle
         - "Dark mode" toggle
         - "Light mode" toggle
-        - "Search" or "Quick Find" field
         
         IMPORTANT: For creating database, use EXACTLY these steps:
         [
@@ -61,13 +59,6 @@ class LLMAgent:
         {{
             "action": "click", 
             "selector_hint": "Database",
-            "description": "Select database type",
-            "value": null,
-            "url": null
-        }},
-        {{
-            "action": "click",
-            "selector_hint": "New database", 
             "description": "Create new database",
             "value": null,
             "url": null
@@ -76,7 +67,25 @@ class LLMAgent:
             "action": "fill",
             "selector_hint": "Untitled",
             "description": "Name the database",
-            "value": "DATABASE_NAME",
+            "value": "sldatabase",
+            "url": null
+        }}
+        ]
+
+        IMPORTANT: For searching, use EXACTLY these steps:
+        [
+        {{
+            "action": "click",
+            "selector_hint": "Search",
+            "description": "Open search field",
+            "value": null,
+            "url": null
+        }},
+        {{
+            "action": "fill",
+            "selector_hint": "Search",
+            "description": "Enter search query",
+            "value": "Softlight Test",
             "url": null
         }}
         ]

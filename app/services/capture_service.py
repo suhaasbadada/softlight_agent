@@ -138,14 +138,12 @@ class CaptureService:
                         }
                     ]
 
-                # FIX: Add error handling to stop execution on failures
                 for i, step in enumerate(steps_raw, start=1):
                     try:
                         print(f"Executing Notion step {i}/{len(steps_raw)}: {step.get('action')} '{step.get('selector_hint')}'")
                         
                         before_screenshot = await page.screenshot()
-                        
-                        # Execute step and check for success
+
                         step_success = await self._execute_single_step(page, step, i, "Notion")
                         
                         if not step_success:
@@ -159,7 +157,7 @@ class CaptureService:
                                 "url": page.url if page else "unknown",
                                 "verified": False
                             })
-                            break  # STOP EXECUTION ON FAILURE
+                            break
                         
                         action_verified = await self._verify_action(page, step, before_screenshot)
                         if not action_verified:
@@ -198,7 +196,7 @@ class CaptureService:
                             "url": page.url if page else "unknown",
                             "verified": False
                         })
-                        break  # STOP EXECUTION ON EXCEPTION
+                        break
 
             except Exception as e:
                 print(f"Notion browser setup error: {e}")
@@ -267,10 +265,7 @@ class CaptureService:
         if not selector_hint or selector_hint.strip() == "":
             print("No selector hint for click")
             return False
-            
-        # Special handling for dropdown options - try these first
         if selector_hint.lower() in ["database", "page", "new database"]:
-            # Try to click in overlay container (dropdown menu)
             try:
                 selector = f".notion-overlay-container [role='button']:has-text('{selector_hint}')"
                 await page.click(selector, timeout=5000)
@@ -284,12 +279,9 @@ class CaptureService:
             try:
                 await element.click(timeout=10000)
                 print(f"Clicked using contextual search: '{selector_hint}'")
-                
-                # ADD: Wait for dropdown to open if it's the More Options button
                 if "more options" in selector_hint.lower() or "v" in selector_hint.lower():
-                    await asyncio.sleep(1)  # Wait for dropdown animation
+                    return True
                     
-                return True
             except Exception as e:
                 print(f"Contextual click failed: {e}")
             
@@ -303,8 +295,6 @@ class CaptureService:
                 if strategy["type"] == "text":
                     await page.click(f"text={strategy['value']}", timeout=10000)
                     print(f"Clicked: '{strategy['value']}'")
-                    
-                    # Wait for dropdown to open if it's the More Options button
                     if "more options" in selector_hint.lower() or "v" in selector_hint.lower():
                         await asyncio.sleep(1)
                         
@@ -312,8 +302,7 @@ class CaptureService:
                 elif strategy["type"] == "css":
                     await page.click(strategy["value"], timeout=10000)
                     print(f"Clicked CSS: {strategy['value']}")
-                    
-                    # Wait for dropdown to open if it's the More Options button
+
                     if "more options" in selector_hint.lower() or "v" in selector_hint.lower():
                         await asyncio.sleep(1)
                         
@@ -321,8 +310,7 @@ class CaptureService:
                 elif strategy["type"] == "xpath":
                     await page.click(f"xpath={strategy['value']}", timeout=10000)
                     print(f"Clicked XPath: {strategy['value']}")
-                    
-                    # Wait for dropdown to open if it's the More Options button
+
                     if "more options" in selector_hint.lower() or "v" in selector_hint.lower():
                         await asyncio.sleep(1)
                         
@@ -357,7 +345,6 @@ class CaptureService:
                     print(f"Filled placeholder: {strategy['value']}")
                     return True
                 elif strategy["type"] == "contenteditable":
-                    # FIX: More specific selectors for Notion title fields
                     title_selectors = [
                         ".notion-page-block .notranslate[contenteditable='true']",
                         "[data-placeholder*='Untitled']",
@@ -372,16 +359,13 @@ class CaptureService:
                             if element:
                                 await element.click()
                                 await element.evaluate("(el) => el.innerText = ''")
-                                await element.type(value, delay=50)  # Use type with small delay for contenteditable
+                                await element.type(value, delay=50)
                                 print(f"Filled title field: {value}")
                                 return True
                         except Exception as e:
                             continue
-                            
-                    # Fallback: try to find any contenteditable but be more careful
                     element = await page.query_selector("[contenteditable='true']")
                     if element:
-                        # Check if this looks like a title field (has placeholder or is first in page)
                         placeholder = await element.get_attribute("data-placeholder") or ""
                         if "untitled" in placeholder.lower() or "title" in placeholder.lower():
                             await element.click()
@@ -404,7 +388,6 @@ class CaptureService:
         if not selector_hint.strip():
             return strategies
 
-        # For the More Options (v) button
         if "more options" in hint_lower or "v" in selector_hint or "v shaped" in hint_lower:
             strategies.extend([
                 {"type": "css", "value": "[aria-label*='More options']"},
@@ -414,7 +397,6 @@ class CaptureService:
                 {"type": "css", "value": ".notion-sidebar [role='button']:last-child"},
             ])
 
-        # For dropdown options (Database, Page, etc.)
         if "database" in hint_lower:
             strategies.extend([
                 {"type": "text", "value": "Database"},
@@ -460,7 +442,6 @@ class CaptureService:
                 {"type": "text", "value": "New"},
             ])
             
-        # Generic strategies (should be last)
         strategies.append({"type": "text", "value": selector_hint})
         strategies.extend([
             {"type": "css", "value": f"button:has-text('{selector_hint}')"},
@@ -483,7 +464,8 @@ class CaptureService:
                 {"type": "css", "value": "[data-placeholder*='Title']"},
                 {"type": "css", "value": ".notion-page-block .notranslate[contenteditable='true']"},
                 {"type": "css", "value": ".page-title [contenteditable='true']"},
-                {"type": "contenteditable", "value": "title"}  # Special handling for title fields
+                {"type": "css", "value": ".notion-page-content [contenteditable='true']:first-child"},
+                {"type": "css", "value": ".notion-frame [contenteditable='true']:first-child"},  # Database title
             ])
         
         strategies.extend([
