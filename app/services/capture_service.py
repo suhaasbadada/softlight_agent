@@ -143,8 +143,21 @@ class CaptureService:
                         print(f"Executing Notion step {i}/{len(steps_raw)}: {step.get('action')} '{step.get('selector_hint')}'")
                         
                         before_screenshot = await page.screenshot()
-                        await self._execute_single_step(page, step, i, "Notion")
+                        step_success = await self._execute_single_step(page, step, i, "Notion")
                         
+                        if not step_success:
+                            print(f"Step {i} failed, stopping execution")
+                            error_screenshot = os.path.join(base_dir, f"error_step_{i}.png")
+                            await page.screenshot(path=error_screenshot)
+                            captured_steps.append({
+                                **step, 
+                                "screenshot_path": error_screenshot, 
+                                "error": "Step execution failed",
+                                "url": page.url if page else "unknown",
+                                "verified": False
+                            })
+                            break
+
                         action_verified = await self._verify_action(page, step, before_screenshot)
                         if not action_verified:
                             print(f"Action verification uncertain for step {i}")
@@ -182,7 +195,7 @@ class CaptureService:
                             "url": page.url if page else "unknown",
                             "verified": False
                         })
-                        continue
+                        break  # STOP EXECUTION ON EXCEPTION
 
             except Exception as e:
                 print(f"Notion browser setup error: {e}")
@@ -207,47 +220,57 @@ class CaptureService:
 
         return captured_steps
 
-    async def _execute_single_step(self, page, step: Dict[str, Any], step_num: int, app: str):
+    async def _execute_single_step(self, page, step: Dict[str, Any], step_num: int, app: str) -> bool:
+        """Execute a single step and return True if successful, False otherwise"""
         action = step.get("action")
         selector_hint = step.get("selector_hint", "")
         value = step.get("value")
         
-        if action == "navigate" and step.get("url"):
-            try:
-                print(f"Navigating to {step['url']}...")
-                await page.goto(step["url"], wait_until="domcontentloaded", timeout=30000)
-                await asyncio.sleep(2)
-            except PlaywrightTimeoutError:
-                print(f"Navigation timeout to {step['url']}")
-            return
+        try:
+            if action == "navigate" and step.get("url"):
+                try:
+                    print(f"Navigating to {step['url']}...")
+                    await page.goto(step["url"], wait_until="domcontentloaded", timeout=30000)
+                    await asyncio.sleep(2)
+                    return True
+                except PlaywrightTimeoutError:
+                    print(f"Navigation timeout to {step['url']}")
+                    return False
+                    
+            elif action == "wait":
+                wait_time = int(value or 2)
+                print(f"Waiting for {wait_time} seconds...")
+                await asyncio.sleep(wait_time)
+                return True
+                
+            elif action == "click":
+                return await self._smart_click(page, selector_hint, "Notion")
+                
+            elif action == "fill":
+                return await self._smart_fill(page, selector_hint, value, "Notion")
+                
+            elif action == "press":
+                return await self._smart_press(page, selector_hint, value)
+                
+            await asyncio.sleep(1)
+            return True
             
-        elif action == "wait":
-            wait_time = int(value or 2)
-            print(f"Waiting for {wait_time} seconds...")
-            await asyncio.sleep(wait_time)
-            return
-            
-        elif action == "click":
-            await self._smart_click(page, selector_hint, "Notion")
-            
-        elif action == "fill":
-            await self._smart_fill(page, selector_hint, value, "Notion")
-            
-        elif action == "press":
-            await self._smart_press(page, selector_hint, value)
-            
-        await asyncio.sleep(1)
+        except Exception as e:
+            print(f"Step execution error: {e}")
+            return False
 
-    async def _smart_click(self, page, selector_hint: str, app: str):
+    async def _smart_click(self, page, selector_hint: str, app: str) -> bool:
+        """Click an element and return True if successful"""
         if not selector_hint or selector_hint.strip() == "":
-            raise Exception("No selector hint for click")
+            print("No selector hint for click")
+            return False
             
         element = await self._find_notion_element(page, selector_hint)
         if element:
             try:
                 await element.click(timeout=10000)
                 print(f"Clicked using contextual search: '{selector_hint}'")
-                return
+                return True
             except Exception as e:
                 print(f"Contextual click failed: {e}")
             
@@ -261,35 +284,28 @@ class CaptureService:
                 if strategy["type"] == "text":
                     await page.click(f"text={strategy['value']}", timeout=10000)
                     print(f"Clicked: '{strategy['value']}'")
-                    return
+                    return True
                 elif strategy["type"] == "css":
                     await page.click(strategy["value"], timeout=10000)
                     print(f"Clicked CSS: {strategy['value']}")
-                    return
+                    return True
                 elif strategy["type"] == "xpath":
                     await page.click(f"xpath={strategy['value']}", timeout=10000)
                     print(f"Clicked XPath: {strategy['value']}")
-                    return
+                    return True
             except Exception as e:
                 last_error = e
                 print(f"Click failed: {e}")
                 continue
                 
-        raise Exception(f"Notion element not found: {selector_hint}. Error: {last_error}")
+        print(f"Notion element not found: {selector_hint}. Error: {last_error}")
+        return False
 
-    async def _smart_fill(self, page, selector_hint: str, value: str, app: str):
+    async def _smart_fill(self, page, selector_hint: str, value: str, app: str) -> bool:
+        """Fill a field and return True if successful"""
         if not selector_hint or selector_hint.strip() == "":
-            try:
-                input_element = await page.query_selector("input[type='text'], textarea, [contenteditable='true']")
-                if input_element:
-                    await input_element.click()
-                    await input_element.fill(value)
-                    print(f"Filled first input with: {value}")
-                    return
-            except Exception as e:
-                print(f"Fallback fill failed: {e}")
-            raise Exception("No selector hint for fill")
-            
+            return False
+                
         strategies = self._get_notion_fill_strategies(selector_hint)
         
         last_error = None
@@ -300,26 +316,50 @@ class CaptureService:
                 if strategy["type"] == "css":
                     await page.fill(strategy["value"], value, timeout=10000)
                     print(f"Filled CSS: {strategy['value']}")
-                    return
+                    return True
                 elif strategy["type"] == "placeholder":
                     selector = f"input[placeholder*='{strategy['value']}'], textarea[placeholder*='{strategy['value']}']"
                     await page.fill(selector, value, timeout=10000)
                     print(f"Filled placeholder: {strategy['value']}")
-                    return
+                    return True
                 elif strategy["type"] == "contenteditable":
+                    # FIX: More specific selectors for Notion title fields
+                    title_selectors = [
+                        ".notion-page-block .notranslate[contenteditable='true']",
+                        "[data-placeholder*='Untitled']",
+                        "[data-placeholder*='Title']",
+                        ".page-title [contenteditable='true']",
+                        ".notion-page-content [contenteditable='true']:first-child"
+                    ]
+                    
+                    for title_selector in title_selectors:
+                        try:
+                            element = await page.query_selector(title_selector)
+                            if element:
+                                await element.click()
+                                await element.evaluate("(el) => el.innerText = ''")
+                                await element.type(value, delay=50)
+                                print(f"Filled title field: {value}")
+                                return True
+                        except Exception as e:
+                            continue
+
                     element = await page.query_selector("[contenteditable='true']")
                     if element:
-                        await element.click()
-                        await element.evaluate("(el) => el.innerText = ''")
-                        await element.type(value)
-                        print(f"Filled contenteditable: {value}")
-                        return
+                        placeholder = await element.get_attribute("data-placeholder") or ""
+                        if "untitled" in placeholder.lower() or "title" in placeholder.lower():
+                            await element.click()
+                            await element.evaluate("(el) => el.innerText = ''")
+                            await element.type(value, delay=50)
+                            print(f"Filled contenteditable title: {value}")
+                            return True
             except Exception as e:
                 last_error = e
                 print(f"Fill failed: {e}")
                 continue
                 
-        raise Exception(f"Notion input not found: {selector_hint}. Error: {last_error}")
+        print(f"Notion input not found: {selector_hint}. Error: {last_error}")
+        return False
 
     def _get_notion_click_strategies(self, selector_hint: str) -> List[Dict]:
         strategies = []
@@ -377,24 +417,30 @@ class CaptureService:
             
         if "title" in hint_lower or "untitled" in hint_lower:
             strategies.extend([
-                {"type": "css", "value": "[contenteditable='true']"},
+                {"type": "css", "value": "[data-placeholder*='Untitled']"},
                 {"type": "css", "value": "[data-placeholder*='Title']"},
-                {"type": "css", "value": "[placeholder*='Title']"},
+                {"type": "css", "value": ".notion-page-block .notranslate[contenteditable='true']"},
+                {"type": "css", "value": ".page-title [contenteditable='true']"},
+                {"type": "contenteditable", "value": "title"}  # Special handling for title fields
             ])
         
         strategies.extend([
             {"type": "placeholder", "value": selector_hint},
             {"type": "css", "value": f"input[placeholder*='{selector_hint}']"},
             {"type": "css", "value": "input[type='text']:visible"},
-            {"type": "css", "value": "[contenteditable='true']:visible"},
         ])
         
         return strategies
 
-    async def _smart_press(self, page, selector_hint: str, value: str):
-        key = value.upper() if value else "ENTER"
-        print(f"Pressing key: {key}")
-        await page.keyboard.press(key)
+    async def _smart_press(self, page, selector_hint: str, value: str) -> bool:
+        try:
+            key = value.upper() if value else "ENTER"
+            print(f"Pressing key: {key}")
+            await page.keyboard.press(key)
+            return True
+        except Exception as e:
+            print(f"Key press failed: {e}")
+            return False
 
     async def _find_notion_element(self, page, hint: str):
         elements = await page.query_selector_all("button, [role='button'], a, [onclick], input, textarea")
