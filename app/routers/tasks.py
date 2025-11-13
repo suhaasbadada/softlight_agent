@@ -9,5 +9,5 @@ async def run_task(request: TaskRequest):
     if not request.app or not request.instruction:
         raise HTTPException(status_code=400, detail="Both 'app' and 'instruction' are required.")
 
-    result = task_service.process_task(request.app, request.instruction)
+    result = await task_service.process_task(request.app, request.instruction)
     return result

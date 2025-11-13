@@ -3,7 +3,7 @@ from typing import List, Optional
 
 class Step(BaseModel):
     action: str
-    selector_hint: str
+    selector_hint: Optional[str] = None
     description: str
     value: Optional[str] = None
     url: Optional[str] = None
