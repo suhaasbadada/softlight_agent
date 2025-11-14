@@ -388,6 +388,15 @@ class CaptureService:
         if not selector_hint.strip():
             return strategies
 
+        if "search" in hint_lower:
+            strategies.extend([
+                {"type": "css", "value": "input[placeholder*='Search']"},
+                {"type": "css", "value": "input[placeholder*='Quick find']"},
+                {"type": "css", "value": "[data-testid*='search']"},
+                {"type": "text", "value": "Search"},
+                {"type": "text", "value": "Quick Find"},
+            ])
+
         if "more options" in hint_lower or "v" in selector_hint or "v shaped" in hint_lower:
             strategies.extend([
                 {"type": "css", "value": "[aria-label*='More options']"},

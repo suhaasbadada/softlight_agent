@@ -17,10 +17,12 @@ class LLMAgent:
         - After clicking search, type the search query
         - Settings/Theme: Click "Settings & members" → "Settings" → "Appearance" → Toggle theme
         - Date & Time Settings: Click "Settings & members" → "Settings" → "Date & time" → Toggle "Start week on Monday"
+        - Generic Tasks like Viewing Account, People is Under Settings
         
         CRITICAL: 
-        - For creation: Use "More Options (v shaped button)"
+        - ONLY for creation: Use "More Options (v shaped button)"
         - For search: Use "Search" or "Quick Find" field
+        - Unless specified to work on pages/databases/tasks, everything else is usually in Settings
         """
 
         prompt = f"""

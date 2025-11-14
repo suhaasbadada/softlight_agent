@@ -3,3 +3,4 @@ __pycache__/
 .env
 app/dataset/
 playwright_profile/
+.DS_Store
